@@ -4,67 +4,83 @@ namespace Fuel\Tasks;
 use PHPCrawler;
 use PHPCrawlerDocumentInfo;
 
-// Inculde thư viện PHPCrawl
+// Inculde PHPCrawler Library and simple_html_dom library
 include("./fuel/app/libs/crawler/PHPCrawler.class.php");
 include("./fuel/app/libs/simple_html_dom/simple_html_dom.php");
 
 
-// Extend the class PHPCrawler and cài đè phương thức handleDocumentInfo()
+// Extend the class and override the handleDocumentInfo()-method 
 class MyCrawler extends PHPCrawler
 {
-    // Các bạn cài đè phương thức handleDocumentInfo() để xử lý tất cả các thông tin thu tập được.
     function handleDocumentInfo(PHPCrawlerDocumentInfo $DocInfo)
-    {
+    {       
+        // Get url data
+        $url = $DocInfo->url;
         
-        // Lấy toàn bộ url của website
-        echo "Page requested: ".$DocInfo->url."</br>";
-        
-        // lấy file html từ các links crawler được.
+        // Get file html
         $html = file_get_html($DocInfo->url);
         
+        // Assign title variable
+        $title = "";
+       
+        // Get title data
         if(is_object($html)){
             
-            // Trả về đối tượng nếu tìm được, hoặc null nếu không.
+            // Look for title
             $t = $html->find("title", 0);
+            
             if($t){
+                
+                // If found title is not null, update title
                 $title = $t->innertext;
             }
-            
-            echo "Title: ".$title."</br></br></br>";
+                   
             $html->clear();
-            unset($html);
+            unset($html);        
         }
         
+        // Get time data
+        $created_at = date('Y-m-d H:i:s');
+        
+        // Insert into database
+        $model = new \Model_Crawlerdata();
+        $model->title = $title;
+        $model->url = $url;
+        $model->created_at = $created_at;
+        $model->save(); 
+                
         flush();
     }
 }
 
 
+// Create getcrawler task
 class Getcrawler
 {
     public function run()
     {                
         $crawler = new MyCrawler();
         
-        // set URL mà ta muốn crawler
+        // Set URL to retreive data
         $crawler->setURL("http://php.net/");
         
-        // Chỉ lấy các file mà nội dung là "text/html"
+        // Only receive content of files with content-type "text/html" 
         $crawler->addContentTypeReceiveRule("#text/html#");
         
-        // Một bộ lọc cho phép ta không lấy các link ảnh, css hoặc javascript
+        // Set filter rule to ignore links to other data types
         $crawler->addURLFilterRule("#(jpg|gif|png|pdf|jpeg|svg|css|js)$# i");
         
-        // Trong quá trình crawler, lưu trữ và gửi cookie giống như ta vào bằng trinh duyệt
+        // Store and send cookie-data like a browser does
         $crawler->enableCookieHandling(true);
         
-        // Thiết lập dung lượng(bytes) thu thập được trong quá trình crawler
+        // Set the traffic-limit to 1 MB (in bytes,
+        // for testing we dont want to "suck" the whole site) 
         $crawler->setTrafficLimit(1000 * 1024);
         
-        // Nào, chạy thôi, hehe, :))
+        // Run the task
         $crawler->go();
         
-        // Sau khi quá trình crawler kết thúc, ghi lại báo cáo!!
+        // Get and print a short report
         $report = $crawler->getProcessReport();
         
         if (PHP_SAPI == "cli") $lb = "\n";
